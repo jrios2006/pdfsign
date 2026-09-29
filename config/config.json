@@ -1,0 +1,9 @@
+{
+    "certificates": {
+        "search_paths": [
+            "./certificados",
+            "~/.pdfsign/certs"
+        ],
+        "allowed_extensions": [".p12", ".pfx"]
+    }
+}
