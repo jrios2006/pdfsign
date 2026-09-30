@@ -5,5 +5,19 @@
             "~/.pdfsign/certs"
         ],
         "allowed_extensions": [".p12", ".pfx"]
+    },
+    "visual_signatures": {
+        "icons_path": "./images",
+        "default_width": 200,
+        "default_height": 50,
+        "margin": 10,
+        "base_x": 20,
+        "base_y": 20,
+        "allowed_reasons": {
+            "aprobado": "Aprobado",
+            "visado": "Visado",
+            "revisado": "Revisado",
+            "rechazado": "Rechazado"
+        }
     }
 }

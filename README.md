@@ -1,4 +1,4 @@
-# PdfSign
+# PdfSign (v0.2.0)
 
 PdfSign es una librería y herramienta de línea de comandos (CLI) en Python diseñada para facilitar la firma digital de documentos PDF utilizando certificados digitales locales (`.p12` o `.pfx`). 
 
@@ -6,10 +6,10 @@ Implementa firmas estándar PAdES y soporta firmas incrementales, permitiendo qu
 
 ## 🚀 Características
 *   **Firma Incremental:** Permite múltiples firmas en un solo PDF.
+*   **Visados Visuales Apilados:** Inyecta sellos gráficos dinámicos que no se solapan.
 *   **Validación Integrada:** Analiza PDFs para comprobar firmas previas y su integridad.
 *   **Descubrimiento de Certificados:** Busca automáticamente archivos `.p12`/`.pfx` en rutas configurables.
 *   **Salida Estructurada:** API interna basada en JSON para fácil integración con otros sistemas.
-*   **CLI Completa:** Utilizable directamente desde la terminal.
 
 ## 📦 Instalación
 
@@ -20,11 +20,11 @@ Implementa firmas estándar PAdES y soporta firmas incrementales, permitiendo qu
 pip install -r requirements.txt
 ```
 
-*Dependencias principales: `pyhanko`, `cryptography` y `asn1crypto`.*
+*Dependencias principales: `pyhanko`, `cryptography`, `Pillow` y `asn1crypto`.*
 
 ## ⚙️ Configuración
 
-El comportamiento de búsqueda de certificados se define en `config/config.json`. Puedes añadir las rutas donde guardas tus certificados (incluso rutas relativas o con `~` para el directorio de usuario).
+El comportamiento de búsqueda de certificados y el formato visual de los sellos se define en `config/config.json`. 
 
 ```json
 {
@@ -34,28 +34,22 @@ El comportamiento de búsqueda de certificados se define en `config/config.json`
             "~/.pdfsign/certs"
         ],
         "allowed_extensions": [".p12", ".pfx"]
+    },
+    "visual_signatures": {
+        "icons_path": "./images",
+        "default_width": 200,
+        "default_height": 50,
+        "margin": 10,
+        "base_x": 20,
+        "base_y": 20,
+        "allowed_reasons": {
+            "aprobado": "Aprobado",
+            "visado": "Visado",
+            "revisado": "Revisado",
+            "rechazado": "Rechazado"
+        }
     }
 }
-```
-
-## 🔐 Generar Certificado de Prueba (OpenSSL)
-
-Si no dispones de un certificado real (como los de la FNMT) y quieres hacer pruebas locales, puedes generar un certificado autofirmado en formato `.p12` utilizando OpenSSL.
-
-Ejecuta estos comandos en la raíz del proyecto. El sistema generará un certificado con la contraseña **`prueba123`** y lo guardará en la carpeta `certificados/`:
-
-```bash
-# 1. Crear el directorio si no existe
-mkdir -p certificados
-
-# 2. Generar clave privada y certificado (válido por 1 año)
-openssl req -x509 -newkey rsa:2048 -keyout certificados/clave_temp.pem -out certificados/cert_temp.pem -days 365 -nodes -subj "/CN=Usuario De Prueba OpenSSL/O=Proyecto PdfSign"
-
-# 3. Empaquetar ambos en un archivo .p12 con la contraseña "prueba123"
-openssl pkcs12 -export -out certificados/prueba_local.p12 -inkey certificados/clave_temp.pem -in certificados/cert_temp.pem -passout pass:prueba123
-
-# 4. Eliminar los archivos temporales PEM
-rm certificados/clave_temp.pem certificados/cert_temp.pem
 ```
 
 ## 💻 Uso desde Línea de Comandos (CLI)
@@ -63,7 +57,7 @@ rm certificados/clave_temp.pem certificados/cert_temp.pem
 El archivo `main.py` proporciona una interfaz de terminal profesional para interactuar con la librería.
 
 ### 1. Listar certificados disponibles
-Busca y muestra todos los certificados válidos encontrados en las rutas del `config.json`.
+Busca y muestra todos los certificados válidos encontrados en las rutas configuradas.
 ```bash
 python main.py list-certs
 ```
@@ -74,57 +68,57 @@ Lee un PDF y muestra su tamaño, metadatos y la lista de firmas incrustadas, ver
 python main.py analyze ruta/al/documento.pdf
 ```
 
-### 3. Firmar un documento
-Inyecta una firma digital en el PDF. Te solicitará la contraseña de forma segura en la terminal. El archivo original nunca se sobreescribe.
+### 3. Firmar un documento (Visados e Invisibles)
+Inyecta una firma digital en el PDF. El archivo original nunca se sobreescribe. Por defecto, se crea un sello visual de "Visado".
+
 ```bash
-python main.py sign archivo_original.pdf ruta/al/certificado.pfx archivo_firmado.pdf
+# Firma visual estándar (Visado)
+python main.py sign origen.pdf certificado.pfx destino.pdf
+
+# Firma visual indicando un motivo específico (aprobado, visado, revisado, rechazado)
+python main.py sign origen.pdf certificado.pfx destino.pdf --reason aprobado
+
+# Firma puramente criptográfica (sin recuadro visual)
+python main.py sign origen.pdf certificado.pfx destino.pdf --invisible
 ```
 
-## 🛠️ Uso como Librería Python
+## 🎨 Especificación Funcional: Visados Visuales
 
-PdfSign está diseñado para ser importado fácilmente en otros proyectos Python. Todas sus funciones devuelven un string en formato JSON con la estructura `status`, `message` y `data`.
+Para mantener el cumplimiento del estándar PDF y la validez criptográfica, PdfSign implementa una arquitectura específica para la inyección de sellos:
 
-```python
-import json
-from pdfsign import sign_pdf, analyze_pdf
+### 1. Prevención de Corrupción (Inyección en la Última Página)
+En la arquitectura de un documento PDF, una firma digital interactiva es un *Widget de Anotación* vinculado a una única página. Si la librería modificara todas las páginas de un documento para añadir una marca de agua iterativa *después* de que un primer usuario haya firmado, el hash criptográfico de esa primera firma se rompería al detectar cambios estructurales. 
+Por ello, PdfSign extrae el número total de páginas del documento original e inyecta el widget de la firma de forma segura **únicamente en la última página**.
 
-# 1. Analizar un PDF
-analisis_json = analyze_pdf("contrato.pdf")
-resultado = json.loads(analisis_json)
+### 2. Algoritmo de Apilamiento (Stacking Algorithm)
+Para documentos multifirma, PdfSign evita que el sello de un firmante sobrescriba el de otro mediante un algoritmo dinámico. Antes de firmar, el motor analiza el documento para contar las firmas previas. Basándose en este número, calcula el desplazamiento vertical exacto (eje Y) aplicando la altura de la caja (50pt) y un margen (10pt), creando una columna ordenada de visados en el lateral del documento.
 
-if resultado["status"] == "success":
-    print("Firmas actuales:", resultado["data"]["signatures"])
-
-# 2. Firmar un PDF
-firma_json = sign_pdf(
-    input_pdf="contrato.pdf",
-    cert_path="certificados/usuario.p12",
-    password="mi_contraseña_segura",
-    output_pdf="contrato_firmado.pdf"
-)
-
-respuesta = json.loads(firma_json)
-if respuesta["status"] == "success":
-    print("Documento firmado correctamente por:", respuesta["data"]["signer_name"])
-else:
-    print("Error:", respuesta["message"])
-```
+### 3. Tipos de Visado y Recursos
+El sistema soporta diferentes estados representados con iconos que deben alojarse en la carpeta `images/`:
+*   `aprobado.png`
+*   `visado.png`
+*   `revisado.png`
+*   `rechazado.png`
 
 ## 📁 Estructura del Proyecto
 
 ```text
 pdfsign/
 ├── config/
-│   └── config.json         # Rutas de certificados
+│   └── config.json         # Rutas de certificados y configuración visual
 ├── pdfsign/
-│   ├── __init__.py         # Exportación de módulos
+│   ├── __init__.py         # API Pública (v0.2.0)
 │   ├── certificate.py      # Extracción y descubrimiento (cryptography)
+│   ├── visual.py           # Algoritmos de apilamiento y estilos gráficos
 │   ├── signer.py           # Motor de firma PAdES (pyHanko + cryptography)
 │   ├── pdf.py              # Análisis y validación de documentos
 │   └── exceptions.py       # Excepciones base de la librería
+├── utils/
+│   └── setup_images.py     # Generador automático de iconos base
 ├── examples/               # Carpeta para documentos de prueba
+├── images/                 # Iconos para sellos visuales
 ├── tests/                  # Scripts de validación y pruebas
-├── main.py                 # Interfaz de Línea de Comandos (CLI)
+├── main.py                 # Interfaz de CLI
 ├── requirements.txt        # Dependencias
 └── README.md               # Documentación
 ```
