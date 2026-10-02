@@ -10,6 +10,7 @@ Implementa firmas estándar PAdES y soporta firmas incrementales, permitiendo qu
 *   **Validación Integrada:** Analiza PDFs para comprobar firmas previas y su integridad.
 *   **Descubrimiento de Certificados:** Busca automáticamente archivos `.p12`/`.pfx` en rutas configurables.
 *   **Salida Estructurada:** API interna basada en JSON para fácil integración con otros sistemas.
+*   **Interfaz Gráfica (GUI):** Entorno de escritorio con análisis en tiempo real y prevención de firmas duplicadas.
 
 ## 📦 Instalación
 
@@ -51,6 +52,21 @@ El comportamiento de búsqueda de certificados y el formato visual de los sellos
     }
 }
 ```
+
+## 🖥️ Uso desde Interfaz Gráfica (GUI)
+
+PdfSign incluye una aplicación de escritorio nativa basada en `tkinter` que facilita todo el flujo de trabajo sin necesidad de usar la terminal.
+
+Para iniciarla, ejecuta:
+```bash
+python gui.py
+```
+
+**Características de la GUI:**
+*   **Análisis en tiempo real:** Al seleccionar un PDF, muestra automáticamente los firmantes previos, la fecha exacta de firma y el estado de integridad estructural.
+*   **Control de duplicados:** Analiza el nombre (Common Name) del certificado seleccionado y avisa si ese usuario ya ha firmado el documento, evitando visados redundantes.
+*   **Gestión del ciclo de vida:** Permite abrir el documento firmado con el visor predeterminado del sistema operativo, descartarlo (borrarlo) al instante si hay un error, o limpiar el formulario para un nuevo documento conservando el certificado activo.
+*   **Persistencia:** Recuerda las últimas carpetas utilizadas guardando las rutas en un archivo local `gui_settings.json`.
 
 ## 💻 Uso desde Línea de Comandos (CLI)
 
@@ -119,6 +135,8 @@ pdfsign/
 ├── images/                 # Iconos para sellos visuales
 ├── tests/                  # Scripts de validación y pruebas
 ├── main.py                 # Interfaz de CLI
+├── gui.py                  # Interfaz Gráfica de Usuario (GUI)
+├── gui_settings.json       # Persistencia de rutas para la GUI (autogenerado)
 ├── requirements.txt        # Dependencias
 └── README.md               # Documentación
 ```
